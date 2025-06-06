@@ -1,0 +1,79 @@
+name: Periodic Benchmarks
+
+on:
+  schedule:
+    # Run at 1:00 AM UTC every Monday
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+    # Manual trigger with optional inputs
+    inputs:
+      hypervisor:
+        description: 'Hypervisor to benchmark (leave empty for all)'
+        required: false
+        type: string
+
+permissions:
+  # deployments permission to deploy GitHub pages website
+  deployments: write
+  # contents permission to update benchmark contents in gh-pages branch
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        hypervisor: [kvm]  # hyperv is windows, mshv and kvm are linux
+        config: [release]  # Only benchmark release builds
+    
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hyperlight-dev/ci-setup-workflow@v1.4.0
+        with:
+          rust-toolchain: "1.85"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Build and move Rust guests
+        run: |
+          # use these commands in favor of build-and-move-rust-guests to avoid building both configs
+          just build-rust-guests ${{ matrix.config }}
+          just move-rust-guests ${{ matrix.config }}
+
+      - name: Run benchmarks
+        run: |
+          mkdir ./bench-output/
+          ls -l /dev/kvm
+          groups
+          sudo usermod -aG kvm $USER
+          sudo chown -R $USER /dev/kvm
+          egrep -c '(vmx|svm)' /proc/cpuinfo
+          just bench-ci main ${{ matrix.config }} ${{ matrix.hypervisor == 'mshv3' && 'mshv3' || '""'}} bencher | tee ./bench-output/bench_results.txt
+        if: ${{ matrix.config == 'release' }}
+
+      # Use github-action-benchmark to track results
+      - name: Store Benchmark Result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Hyperlight Benchmarks (${{ runner.os }} - ${{ matrix.hypervisor }} - ${{ matrix.cpu }})
+          tool: cargo
+          output-file-path: ./bench-output/bench_results.json
+          # Use GitHub Actions output for the benchmark result
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: false
+          fail-on-alert: false
+          # Enable Job Summary for benchmark results
+          summary-always: true
+          # Workflow will commit updated data to specified branch
+          auto-push: true

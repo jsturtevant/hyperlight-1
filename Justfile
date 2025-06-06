@@ -205,11 +205,11 @@ bench-download os hypervisor cpu tag="":
     tar -zxvf target/benchmarks_{{ os }}_{{ hypervisor }}_{{ cpu }}.tar.gz -C target/criterion/ --strip-components=1
 
 # Warning: compares to and then OVERWRITES the given baseline
-bench-ci baseline target=default-target features="":
-    cargo bench --profile={{ if target == "debug" { "dev" } else { target } }} {{ if features =="" {''} else { "--features " + features } }} -- --verbose --save-baseline {{ baseline }}
+bench-ci baseline target=default-target  features="" formater="criterion" :
+    cargo bench --profile={{ if target == "debug" { "dev" } else { target } }} {{ if features =="" {''} else { "--features " + features } }} -- --verbose --save-baseline {{ baseline }} --output-format {{ formater }}
 
 bench target=default-target features="":
-    cargo bench --profile={{ if target == "debug" { "dev" } else { target } }} {{ if features =="" {''} else { "--features " + features } }} -- --verbose
+    cargo bench --profile={{ if target == "debug" { "dev" } else { target } }} {{ if features =="" {''} else { "--features " + features } }} -- --verbose 
 
 ###############
 ### FUZZING ###
