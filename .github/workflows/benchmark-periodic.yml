@@ -2,8 +2,8 @@ name: Periodic Benchmarks
 
 on:
   schedule:
-    # Run at 1:00 AM UTC every Monday
-    - cron: '0 1 * * 1'
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     # Manual trigger with optional inputs
     inputs:
