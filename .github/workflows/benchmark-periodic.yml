@@ -54,9 +54,6 @@ jobs:
       - name: Run benchmarks
         run: |
           mkdir ./bench-output/
-          ls -l /dev/kvm
-          groups
-          sudo usermod -aG kvm $USER
           sudo chown -R $USER /dev/kvm
           egrep -c '(vmx|svm)' /proc/cpuinfo
           just bench-ci main ${{ matrix.config }} ${{ matrix.hypervisor == 'mshv3' && 'mshv3' || '""'}} bencher | tee ./bench-output/bench_results.txt
@@ -68,7 +65,7 @@ jobs:
         with:
           name: Hyperlight Benchmarks (${{ runner.os }} - ${{ matrix.hypervisor }} - ${{ matrix.cpu }})
           tool: cargo
-          output-file-path: ./bench-output/bench_results.json
+          output-file-path: ./bench-output/bench_results.txt
           # Use GitHub Actions output for the benchmark result
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-on-alert: false
