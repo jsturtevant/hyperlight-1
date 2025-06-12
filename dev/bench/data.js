@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749757090059,
+  "lastUpdate": 1749757827358,
   "repoUrl": "https://github.com/jsturtevant/hyperlight-1",
   "entries": {
     "Hyperlight Benchmarks (Linux - kvm - )": [
@@ -8527,6 +8527,88 @@ window.BENCHMARK_DATA = {
             "name": "sandboxes/create_sandbox_and_call_context_and_drop",
             "value": 8010519,
             "range": "± 3443161",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "James Sturtevant",
+            "username": "jsturtevant",
+            "email": "jsturtevant@gmail.com"
+          },
+          "committer": {
+            "name": "James Sturtevant",
+            "username": "jsturtevant",
+            "email": "jsturtevant@gmail.com"
+          },
+          "id": "086a75c82a0fc8ae4e6a683ed6cc8a6fa900eeb0",
+          "message": "run every 15 mins\n\nSigned-off-by: James Sturtevant <jsturtevant@gmail.com>",
+          "timestamp": "2025-06-10T21:33:21Z",
+          "url": "https://github.com/jsturtevant/hyperlight-1/commit/086a75c82a0fc8ae4e6a683ed6cc8a6fa900eeb0"
+        },
+        "date": 1749757826334,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "guest_functions/guest_call",
+            "value": 21612,
+            "range": "± 1306",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "guest_functions/guest_call_with_reset",
+            "value": 45917,
+            "range": "± 2841",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "guest_functions/guest_call_with_large_parameters",
+            "value": 1290152354,
+            "range": "± 129827848",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "guest_functions/guest_call_with_call_to_host_function",
+            "value": 184618,
+            "range": "± 4672",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_uninitialized_sandbox",
+            "value": 354559,
+            "range": "± 17175",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_uninitialized_sandbox_and_drop",
+            "value": 413938,
+            "range": "± 5428",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_sandbox",
+            "value": 1802037,
+            "range": "± 184861",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_sandbox_and_drop",
+            "value": 11749391,
+            "range": "± 5721912",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_sandbox_and_call_context",
+            "value": 2176938,
+            "range": "± 363561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sandboxes/create_sandbox_and_call_context_and_drop",
+            "value": 14168174,
+            "range": "± 5508630",
             "unit": "ns/iter"
           }
         ]
