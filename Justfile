@@ -70,10 +70,7 @@ test-like-ci config=default-target hypervisor="kvm":
     just test {{config}} seccomp,build-metadata,init-paging,{{ if hypervisor == "mshv" {"mshv2"} else if hypervisor == "mshv3" {"mshv3"} else {"kvm"} }}
 
     @# make sure certain cargo features compile
-    cargo check -p hyperlight-host --features crashdump
-    cargo check -p hyperlight-host --features print_debug
-    cargo check -p hyperlight-host --features gdb
-    cargo check -p hyperlight-host --features trace_guest,unwind_guest,mem_profile
+    just check
 
     @# without any driver (should fail to compile)
     just test-compilation-no-default-features {{config}}
@@ -212,6 +209,7 @@ test-rust-tracing target=default-target features="" target-triple="":
 
 test-doc target=default-target features="" target-triple="":
     cargo test --profile={{ if target == "debug" { "dev" } else { target } }}{{ if target-triple != "" { " --target " + target-triple } else { "" } }} {{ if features =="" {''} else { "--features " + features } }} --doc
+
 ################
 ### LINTING ####
 ################
