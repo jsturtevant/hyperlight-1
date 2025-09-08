@@ -13,10 +13,13 @@ PACKAGE="$1"
 TARGET="$2"
 TARGET_TRIPLE="${3:-}"
 
+CARGO="cargo"
+
 # Cargo target argument to append to cargo calls (empty if not provided)
 TRIPLE_ARG=""
 if [[ -n "${TARGET_TRIPLE}" ]]; then
-    TRIPLE_ARG="--target ${TARGET_TRIPLE}"
+    TRIPLE_ARG="--target ${TARGET_TRIPLE} --target-dir ./target/host"
+    CARGO="cross"
 fi
 
 # Convert target for cargo profile
@@ -45,23 +48,23 @@ fi
 # Test with minimal features
 if [[ ${#REQUIRED_FEATURES[@]} -gt 0 ]]; then
     echo "Testing $PACKAGE with required features only ($required_features_str)..."
-    (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+    (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
 else
     echo "Testing $PACKAGE with no features..."
-    (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+    (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
 fi
 
 echo "Testing $PACKAGE with default features..."
-(set -x; cargo clippy -p "$PACKAGE" --all-targets --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+(set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
 
 # Test each additional feature individually
 for feature in $features; do
     if [[ ${#REQUIRED_FEATURES[@]} -gt 0 ]]; then
         echo "Testing $PACKAGE with feature: $required_features_str,$feature"
-        (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str,$feature" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+        (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str,$feature" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
     else
         echo "Testing $PACKAGE with feature: $feature"
-        (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --features "$feature" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+        (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --features "$feature" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
     fi
 done
 
@@ -70,9 +73,9 @@ if [[ -n "$features" ]]; then
     all_features=$(echo $features | tr '\n' ',' | sed 's/,$//')
     if [[ ${#REQUIRED_FEATURES[@]} -gt 0 ]]; then
         echo "Testing $PACKAGE with all features: $required_features_str,$all_features"
-        (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str,$all_features" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+        (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --features "$required_features_str,$all_features" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
     else
         echo "Testing $PACKAGE with all features: $all_features"
-        (set -x; cargo clippy -p "$PACKAGE" --all-targets --no-default-features --features "$all_features" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
+        (set -x; "$CARGO" clippy -p "$PACKAGE" --all-targets --no-default-features --features "$all_features" --profile="$PROFILE" ${TRIPLE_ARG} -- -D warnings)
     fi
 fi
