@@ -58,6 +58,22 @@ jobs:
       cpu: ${{ matrix.cpu }}
       config: ${{ matrix.config }}
 
+  ### TEMP to test that the musl target is working
+  musl:
+    strategy:
+      fail-fast: true
+      matrix:
+        hypervisor: [kvm, mshv3]
+        cpu: [amd, intel]
+        config: [debug, release]
+    uses: ./.github/workflows/dep_rust.yml
+    secrets: inherit
+    with: 
+      hypervisor: ${{ matrix.hypervisor }}
+      cpu: ${{ matrix.cpu }}
+      config: ${{ matrix.config }}
+      target_triple: x86_64-unknown-linux-musl
+
   fuzzing:
     needs:
       - docs-pr

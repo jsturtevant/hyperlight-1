@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        hypervisor: [kvm]
+        hypervisor: [kvm, mshv3]
         cpu: [amd, intel]
         config: [debug, release]
     uses: ./.github/workflows/dep_rust.yml
