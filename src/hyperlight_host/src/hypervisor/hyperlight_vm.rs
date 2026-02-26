@@ -1167,9 +1167,24 @@ impl HyperlightVm {
                 _ => 0,
             };
 
-            // Include dynamically mapped regions
-            // TODO: include the snapshot and scratch regions
-            let regions: Vec<MemoryRegion> = self.get_mapped_regions().cloned().collect();
+            // Include the snapshot, scratch, and dynamically mapped regions
+            let mut regions: Vec<MemoryRegion> = Vec::new();
+
+            // Snapshot region: contains guest code, read-only data, page tables, etc.
+            if let Some(snapshot) = &self.snapshot_memory {
+                let guest_base = crate::mem::layout::SandboxMemoryLayout::BASE_ADDRESS as u64;
+                regions.push(snapshot.mapping_at(guest_base, MemoryRegionType::Snapshot));
+            }
+
+            // Scratch region: contains the guest stack, heap, and mutable data.
+            // Use GVA (not GPA) because GDB works with virtual addresses.
+            if let Some(scratch) = &self.scratch_memory {
+                let guest_base = hyperlight_common::layout::scratch_base_gva(scratch.mem_size());
+                regions.push(scratch.mapping_at(guest_base, MemoryRegionType::Scratch));
+            }
+
+            // Dynamically mapped regions (e.g., via map_file_cow / map_region)
+            regions.extend(self.get_mapped_regions().cloned());
             Ok(Some(crashdump::CrashDumpContext::new(
                 regions,
                 regs,
