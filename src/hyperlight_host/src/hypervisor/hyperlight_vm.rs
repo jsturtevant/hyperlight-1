@@ -1162,29 +1162,86 @@ impl HyperlightVm {
                     .and_then(|name| name.to_os_string().into_string().ok())
             });
 
-            let initialise = match self.entrypoint {
-                NextAction::Initialise(initialise) => initialise,
-                _ => 0,
+            // Use the stored entry point address from the runtime config.
+            // This is the original entry point (load_addr + ELF entry offset)
+            // which GDB needs for AT_ENTRY to compute the PIE load offset.
+            // We cannot use self.entrypoint here because it transitions from
+            // Initialise(addr) to Call(dispatch_addr) after guest init.
+            let initialise = self.rt_cfg.entry_point;
+
+            // Build the memory regions for the core dump.
+            //
+            // With init-paging, the guest uses page tables to map physical memory
+            // (GPAs) to virtual addresses (GVAs). GDB works with virtual addresses,
+            // so we must walk the page tables to discover all GVA→GPA mappings and
+            // emit regions at the correct virtual addresses. Without this, GDB
+            // cannot access the stack, heap, or any memory mapped at non-identity
+            // virtual addresses.
+            //
+            // Without init-paging, physical and virtual addresses are the same
+            // (identity mapping), so we can emit the raw regions directly.
+            #[cfg(feature = "init-paging")]
+            let regions = {
+                let mut regions: Vec<MemoryRegion> = Vec::new();
+                if let (Some(snapshot), Some(scratch)) =
+                    (&self.snapshot_memory, &self.scratch_memory)
+                {
+                    let mmap_regions: Vec<MemoryRegion> =
+                        self.get_mapped_regions().cloned().collect();
+                    regions =
+                        crashdump::resolve_gva_regions(snapshot, scratch, &mmap_regions, sregs.cr3);
+                    // Also include dynamic mmap regions at their GVA addresses.
+                    // The page table walk already discovers pages backed by these
+                    // regions, but we include the originals too in case the page
+                    // tables were corrupted and missed some.
+                    for rgn in &mmap_regions {
+                        if !regions.iter().any(|r| {
+                            r.guest_region.start <= rgn.guest_region.start
+                                && r.guest_region.end >= rgn.guest_region.end
+                        }) {
+                            regions.push(rgn.clone());
+                        }
+                    }
+
+                    // Add a zero-filled sentinel page at the stack top GVA.
+                    //
+                    // The dispatch_function is entered by the hypervisor with
+                    // RSP = rsp_gva (MAIN_STACK_TOP_GVA) and no return address
+                    // pushed. When GDB unwinds past dispatch_function, it tries
+                    // to read at rsp_gva to find the caller's return address.
+                    // That page is not mapped in the guest (the stack grows
+                    // downward and ends right at this boundary). Providing a
+                    // zero-filled page here lets GDB read a null return address
+                    // and terminate the backtrace cleanly.
+                    static SENTINEL_PAGE: [u8; 4096] = [0u8; 4096];
+                    let stack_top = self.rsp_gva as usize;
+                    let sentinel_host = SENTINEL_PAGE.as_ptr() as usize;
+                    regions.push(MemoryRegion {
+                        guest_region: stack_top..stack_top + 4096,
+                        host_region: sentinel_host..sentinel_host + 4096,
+                        flags: MemoryRegionFlags::READ,
+                        region_type: MemoryRegionType::Scratch,
+                    });
+                }
+                regions
             };
+            #[cfg(not(feature = "init-paging"))]
+            let regions = {
+                let mut regions: Vec<MemoryRegion> = Vec::new();
 
-            // Include the snapshot, scratch, and dynamically mapped regions
-            let mut regions: Vec<MemoryRegion> = Vec::new();
-
-            // Snapshot region: contains guest code, read-only data, page tables, etc.
-            if let Some(snapshot) = &self.snapshot_memory {
-                let guest_base = crate::mem::layout::SandboxMemoryLayout::BASE_ADDRESS as u64;
-                regions.push(snapshot.mapping_at(guest_base, MemoryRegionType::Snapshot));
-            }
-
-            // Scratch region: contains the guest stack, heap, and mutable data.
-            // Use GVA (not GPA) because GDB works with virtual addresses.
-            if let Some(scratch) = &self.scratch_memory {
-                let guest_base = hyperlight_common::layout::scratch_base_gva(scratch.mem_size());
-                regions.push(scratch.mapping_at(guest_base, MemoryRegionType::Scratch));
-            }
-
-            // Dynamically mapped regions (e.g., via map_file_cow / map_region)
-            regions.extend(self.get_mapped_regions().cloned());
+                // Without paging, GVA == GPA (identity mapped)
+                if let Some(snapshot) = &self.snapshot_memory {
+                    let guest_base = crate::mem::layout::SandboxMemoryLayout::BASE_ADDRESS as u64;
+                    regions.push(snapshot.mapping_at(guest_base, MemoryRegionType::Snapshot));
+                }
+                if let Some(scratch) = &self.scratch_memory {
+                    let guest_base =
+                        hyperlight_common::layout::scratch_base_gva(scratch.mem_size());
+                    regions.push(scratch.mapping_at(guest_base, MemoryRegionType::Scratch));
+                }
+                regions.extend(self.get_mapped_regions().cloned());
+                regions
+            };
             Ok(Some(crashdump::CrashDumpContext::new(
                 regions,
                 regs,

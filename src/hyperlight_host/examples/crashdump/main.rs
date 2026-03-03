@@ -338,7 +338,6 @@ fn print_on_demand_info() {
          \n\
          See docs/how-to-debug-a-hyperlight-guest.md for the full workflow."
     );
-
 }
 
 // ---------------------------------------------------------------------------
