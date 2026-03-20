@@ -18,7 +18,7 @@ use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
-use crate::emit::{ResolvedBoundVar, State, kebab_to_cons, kebab_to_var};
+use crate::emit::{ResolvedBoundVar, State, kebab_to_cons, kebab_to_flags_const, kebab_to_var};
 use crate::etypes::{self, Defined, Handleable, Tyvar, Value};
 use crate::rtypes;
 
@@ -91,16 +91,37 @@ pub fn emit_hl_unmarshal_toplevel_value(
         }
         Value::Flags(ns) => {
             let bytes = usize::div_ceil(ns.len(), 8);
-            let fields = ns.iter().enumerate().map(|(i, n)| {
-                let byte_offset = i / 8;
-                let bit_offset = i % 8;
-                let fieldid = kebab_to_var(n.name);
+            if s.is_wasmtime_guest {
+                let result_var = format_ident!("{}_flags", id);
+                let fields = ns.iter().enumerate().map(|(i, n)| {
+                    let byte_offset = i / 8;
+                    let bit_offset = i % 8;
+                    let const_name = kebab_to_flags_const(n.name);
+                    quote! {
+                        if (#id[#byte_offset] >> #bit_offset) & 0x1 == 1 {
+                            #result_var |= #tname::#const_name;
+                        }
+                    }
+                });
                 quote! {
-                    #fieldid: (#id[#byte_offset] >> #bit_offset) & 0x1 == 1,
+                    {
+                        let mut #result_var = #tname::empty();
+                        #(#fields)*
+                        (#result_var, #bytes)
+                    }
                 }
-            });
-            quote! {
-                (#tname { #(#fields)* }, #bytes)
+            } else {
+                let fields = ns.iter().enumerate().map(|(i, n)| {
+                    let byte_offset = i / 8;
+                    let bit_offset = i % 8;
+                    let fieldid = kebab_to_var(n.name);
+                    quote! {
+                        #fieldid: (#id[#byte_offset] >> #bit_offset) & 0x1 == 1,
+                    }
+                });
+                quote! {
+                    (#tname { #(#fields)* }, #bytes)
+                }
             }
         }
         Value::Variant(vcs) => {
@@ -428,22 +449,42 @@ pub fn emit_hl_marshal_toplevel_value(
         }
         Value::Flags(ns) => {
             let bytes = usize::div_ceil(ns.len(), 8);
-            let fields = ns
-                .iter()
-                .enumerate()
-                .map(|(i, n)| {
-                    let byte_offset = i / 8;
-                    let bit_offset = i % 8;
-                    let fieldid = kebab_to_var(n.name);
-                    quote! {
-                        bytes[#byte_offset] |= (if #id.#fieldid { 1 } else { 0 }) << #bit_offset;
-                    }
-                })
-                .collect::<Vec<_>>();
-            quote! {
-                let mut bytes = [0; #bytes];
-                #(#fields)*
-                alloc::vec::Vec::from(bytes)
+            if s.is_wasmtime_guest {
+                let fields = ns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| {
+                        let byte_offset = i / 8;
+                        let bit_offset = i % 8;
+                        let const_name = kebab_to_flags_const(n.name);
+                        quote! {
+                            bytes[#byte_offset] |= (if #id.contains(#tname::#const_name) { 1 } else { 0 }) << #bit_offset;
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                quote! {
+                    let mut bytes = [0; #bytes];
+                    #(#fields)*
+                    alloc::vec::Vec::from(bytes)
+                }
+            } else {
+                let fields = ns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| {
+                        let byte_offset = i / 8;
+                        let bit_offset = i % 8;
+                        let fieldid = kebab_to_var(n.name);
+                        quote! {
+                            bytes[#byte_offset] |= (if #id.#fieldid { 1 } else { 0 }) << #bit_offset;
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                quote! {
+                    let mut bytes = [0; #bytes];
+                    #(#fields)*
+                    alloc::vec::Vec::from(bytes)
+                }
             }
         }
         Value::Variant(vcs) => {

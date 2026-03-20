@@ -25,8 +25,8 @@ use syn::Ident;
 
 use crate::emit::{
     FnName, ResourceItemName, State, WitName, find_colliding_import_names, import_member_names,
-    kebab_to_cons, kebab_to_exports_name, kebab_to_fn, kebab_to_imports_name, kebab_to_namespace,
-    kebab_to_type, kebab_to_var, split_wit_name,
+    kebab_to_cons, kebab_to_exports_name, kebab_to_flags_const, kebab_to_fn,
+    kebab_to_imports_name, kebab_to_namespace, kebab_to_type, kebab_to_var, split_wit_name,
 };
 use crate::etypes::{
     self, Component, Defined, ExternDecl, ExternDesc, Func, Handleable, ImportExport, Instance,
@@ -420,37 +420,43 @@ fn emit_value_toplevel(s: &mut State, v: Option<u32>, id: Ident, vt: &Value) -> 
             }
         }
         Value::Flags(ns) => {
-            let (vs, toks) = gather_needed_vars(s, v, |s| {
-                let ns = ns
+            if s.is_wasmtime_guest {
+                // Use wasmtime::component::flags! macro which properly
+                // implements Lift/Lower for flags types
+                let flags = ns
                     .iter()
                     .map(|n| {
                         let orig_name = n.name;
-                        let id = kebab_to_var(orig_name);
-                        let derives = if s.is_wasmtime_guest {
-                            quote! { #[component(name = #orig_name)] }
-                        } else {
-                            TokenStream::new()
-                        };
-                        quote! { #derives pub #id: bool }
+                        let const_name = kebab_to_flags_const(orig_name);
+                        quote! {
+                            #[component(name = #orig_name)]
+                            const #const_name;
+                        }
                     })
                     .collect::<Vec<_>>();
-                quote! { #(#ns),* }
-            });
-            let vs = emit_type_defn_var_list(s, vs);
-            let derives = if s.is_wasmtime_guest {
                 quote! {
-                    #[derive(::wasmtime::component::ComponentType)]
-                    #[derive(::wasmtime::component::Lift)]
-                    #[derive(::wasmtime::component::Lower)]
-                    #[component(flags)]
+                    ::wasmtime::component::flags! {
+                        #id {
+                            #(#flags)*
+                        }
+                    }
                 }
             } else {
-                TokenStream::new()
-            };
-            quote! {
-                #derives
-                #[derive(Debug, Clone, PartialEq)]
-                pub struct #id #vs { #toks }
+                let (vs, toks) = gather_needed_vars(s, v, |_| {
+                    let ns = ns
+                        .iter()
+                        .map(|n| {
+                            let id = kebab_to_var(n.name);
+                            quote! { pub #id: bool }
+                        })
+                        .collect::<Vec<_>>();
+                    quote! { #(#ns),* }
+                });
+                let vs = emit_type_defn_var_list(s, vs);
+                quote! {
+                    #[derive(Debug, Clone, PartialEq)]
+                    pub struct #id #vs { #toks }
+                }
             }
         }
         Value::Variant(vcs) => {
